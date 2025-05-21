@@ -6,6 +6,8 @@ const TAILWIND_CSS: Asset = asset!("assets/tailwind.css");
 
 mod image_upload;
 use crate::image_upload::ImageUploader;
+mod img_upload_21;
+use crate::img_upload_21::ImageUploader21;
 fn main() {
     dioxus::launch(App);
 }
@@ -17,9 +19,7 @@ fn App() -> Element {
         // document::Link { rel: "stylesheet", href: MAIN_CSS }
         document::Stylesheet { href: TAILWIND_CSS }
 
-        // style { "{include_str!(\"../assets/tailwind.css\")}" }
-
-        // h1 { class: "flex justify-center text-8xl bg-red-100", "Hello World!" }
         ImageUploader {}
+        ImageUploader21 {}
     }
 }

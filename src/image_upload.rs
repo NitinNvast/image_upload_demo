@@ -32,7 +32,7 @@ pub fn ImageUploader() -> Element {
             button {
                 onclick: pick_image,
                 class: "px-4 py-2 bg-indigo-600 text-white rounded text-2xl",
-                "Choose Image"
+                "ImageUploader"
             }
             {
                 if let Some(url) = image_data_url() {
