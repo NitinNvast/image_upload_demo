@@ -12,6 +12,10 @@ struct ROI {
     height: i32,
 }
 
+fn point_in_roi(x: i32, y: i32, roi: &ROI) -> bool {
+    x >= roi.x && y >= roi.y && x < roi.x + roi.width && y < roi.y + roi.height
+}
+
 #[component]
 pub fn ImageUploader22() -> Element {
     let mut image_data_url = use_signal(|| None::<String>);
@@ -29,6 +33,20 @@ pub fn ImageUploader22() -> Element {
         let scale_val = scale();
         let x = (coords.x / scale_val as f64) as i32;
         let y = (coords.y / scale_val as f64) as i32;
+
+        let shift_pressed = evt.modifiers().shift();
+
+        if shift_pressed {
+            // Try to find and remove a ROI containing the clicked point
+            rois.with_mut(|r| {
+                if let Some(index) = r.iter().position(|roi| point_in_roi(x, y, roi)) {
+                    r.remove(index);
+                    println!("ROI deselected at ({}, {})", x, y);
+                }
+            });
+            return;
+        }
+
         drag_start.set(Some((x, y)));
         drag_current.set(Some((x, y)));
     };
@@ -50,15 +68,12 @@ pub fn ImageUploader22() -> Element {
             let width = (x1 - x0).abs();
             let height = (y1 - y0).abs();
 
-            let x = if x <= 0 { 20 } else { x };
-            let y = if y <= 0 { 20 } else { y };
-
             rois.with_mut(|r| {
                 r.push(ROI {
-                    x,
-                    y,
-                    width,
-                    height,
+                    x: if width <= 0 || height <= 0 { x - 10 } else { x },
+                    y: if width <= 0 || height <= 0 { y - 10 } else { y },
+                    width: if width <= 0 { 20 } else { width },
+                    height: if height <= 0 { 20 } else { height },
                 })
             });
 
@@ -86,10 +101,10 @@ pub fn ImageUploader22() -> Element {
 
                             println!("Extracted RGBA pixels in ROI:");
                             for (px, py, rgba) in rgba_values.iter() {
-                                println!(
-                                    "Pixel ({}, {}): R={}, G={}, B={}, A={}",
-                                    px, py, rgba[0], rgba[1], rgba[2], rgba[3]
-                                );
+                                // println!(
+                                //     "Pixel ({}, {}): R={}, G={}, B={}, A={}",
+                                //     px, py, rgba[0], rgba[1], rgba[2], rgba[3]
+                                // );
                             }
                         } else {
                             println!("Error: Failed to decode image.");
