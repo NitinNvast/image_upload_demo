@@ -73,7 +73,7 @@ pub fn ImageUploader21() -> Element {
         }
     };
 
-    println!("🚀 ~ pubfnImageUploader21 ~ rois:{:#?}", rois);
+    // println!("🚀 ~ pubfnImageUploader21 ~ rois:{:#?}", rois);
 
     rsx! {
         div { class: "p-4 font-sans",
