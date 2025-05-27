@@ -11,6 +11,7 @@ dioxus = { version = "0.6.3", features = [] }
 base64 = "0.22.1"
 image = "0.25.6"
 rfd = "0.15.3"
+dioxus-desktop = "0.6.3"
 
 [features]
 default = ["desktop"]

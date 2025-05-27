@@ -1,4 +1,6 @@
+use dioxus::desktop::{Config, WindowBuilder};
 use dioxus::prelude::*;
+use dioxus::LaunchBuilder;
 
 const TAILWIND_CSS: Asset = asset!("assets/tailwind.css");
 
@@ -9,7 +11,13 @@ use crate::img_upload_21::ImageUploader21;
 mod img_upload_22;
 use crate::img_upload_22::ImageUploader22;
 fn main() {
-    dioxus::launch(App);
+    LaunchBuilder::new()
+        .with_cfg(
+            Config::default()
+                .with_window(WindowBuilder::new().with_title("My App"))
+                .with_menu(None),
+        )
+        .launch(App);
 }
 
 #[component]
