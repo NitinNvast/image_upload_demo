@@ -14,6 +14,9 @@ mod chrome_style_navbar;
 use crate::chrome_style_navbar::ChromeStyleNavbar;
 mod img_upload_29;
 use crate::img_upload_29::ImageUploader29;
+
+mod img_upload_28;
+use crate::img_upload_28::ImageUploader28;
 fn main() {
     LaunchBuilder::new()
         .with_cfg(
@@ -33,7 +36,8 @@ fn App() -> Element {
         // ImageUploader {}
         // ImageUploader21 {}
         // ImageUploader22 {}
-        ImageUploader29 {  }
+        // ImageUploader29 {  }
+        ImageUploader28 {}
         // ChromeStyleNavbar {}
     }
 }
