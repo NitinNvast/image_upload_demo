@@ -16,6 +16,8 @@ mod img_upload_29;
 use crate::img_upload_29::ImageUploader29;
 mod img_upload_27;
 use crate::img_upload_27::ImageUploader27;
+mod img_upload_30;
+use crate::img_upload_30::ImageUploader30;
 
 mod img_upload_28;
 use crate::img_upload_28::ImageUploader28;
@@ -33,6 +35,7 @@ fn main() {
 fn App() -> Element {
     rsx! {
         // document::Stylesheet { href: TAILWIND_CSS }
+        style { "{include_str!(\"../assets/main.css\")}" }
         style { "{include_str!(\"../assets/tailwind.css\")}" }
 
         // ImageUploader {}
@@ -40,7 +43,8 @@ fn App() -> Element {
         // ImageUploader22 {}
         // ImageUploader29 {  }
         // ImageUploader28 {}
-        ImageUploader27 {}
-        // ChromeStyleNavbar {}
+        ChromeStyleNavbar {}
+        // ImageUploader27 {}
+        ImageUploader30 {}
     }
 }
