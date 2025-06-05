@@ -53,14 +53,15 @@ pub fn ChromeStyleNavbar() -> Element {
     .map(|tab| {
         let (bg_class, border_class, text_class, z_class) = if tab.active {
             (
-                "bg-white",
+                "bg-[#e0e0e0] hover:bg-[#d0d0d0]",
                 "border-x border-t border-gray-300",
                 "text-black",
                 "z-10",
             )
         } else {
             (
-                "bg-[#e0e0e0] hover:bg-[#d0d0d0]",
+                // "bg-[#e0e0e0] hover:bg-[#d0d0d0]",
+                "bg-white",
                 "border border-transparent",
                 "text-gray-600",
                 "z-0",
@@ -78,7 +79,7 @@ pub fn ChromeStyleNavbar() -> Element {
                 onclick: move |_| activate_tab(tab.id),
                 "{tab.title}",
                 button {
-                    class: "ml-2 text-gray-400 hover:text-red-500",
+                    class: "ml-2 text-gray-800 hover:text-red-500",
                     onclick: move |evt| {
                         evt.stop_propagation();
                         close_tab(tab.id);
@@ -92,7 +93,7 @@ pub fn ChromeStyleNavbar() -> Element {
 
     rsx! {
         div {
-            class: "relative px-2 bg-[#dfe3e8] border-b border-gray-300 flex items-end space-x-1",
+            class: "relative px-2 border-b border-gray-300 flex items-end space-x-1",
             div {
                 class: "flex overflow-x-auto whitespace-nowrap no-scrollbar",
                 // Fix here: spread vector with into_iter()
