@@ -38,13 +38,16 @@ fn App() -> Element {
         style { "{include_str!(\"../assets/main.css\")}" }
         style { "{include_str!(\"../assets/tailwind.css\")}" }
 
-        // ImageUploader {}
-        // ImageUploader21 {}
-        // ImageUploader22 {}
-        // ImageUploader29 {  }
-        // ImageUploader28 {}
-        ChromeStyleNavbar {}
-        // ImageUploader27 {}
-        ImageUploader30 {}
+
+            // ImageUploader {}
+            // ImageUploader21 {}
+            // ImageUploader22 {}
+            // ImageUploader29 {  }
+            // ImageUploader28 {}
+            ChromeStyleNavbar {}
+            ImageUploader27 {}
+            // ImageUploader30 {}
+
+
     }
 }

@@ -5,7 +5,7 @@ pub fn ChromeStyleNavbar() -> Element {
     let mut tabs = use_signal(|| {
         vec![Tab {
             id: 1,
-            title: "Tab 1".to_string(),
+            title: "Home".to_string(),
             active: true,
         }]
     });

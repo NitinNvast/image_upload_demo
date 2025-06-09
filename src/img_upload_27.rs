@@ -26,6 +26,10 @@ pub fn ImageUploader27() -> Element {
     let image_width = use_signal(|| 0f32);
     let image_height = use_signal(|| 0f32);
 
+    // ROI size signals
+    let mut roi_width = use_signal(|| 16i32);
+    let mut roi_height = use_signal(|| 16i32);
+
     let on_wheel = {
         to_owned![scale];
         move |evt: WheelEvent| {
@@ -44,7 +48,14 @@ pub fn ImageUploader27() -> Element {
     };
 
     let on_mouse_down = {
-        to_owned![rois, scale, image_width, image_height];
+        to_owned![
+            rois,
+            scale,
+            image_width,
+            image_height,
+            roi_width,
+            roi_height
+        ];
         move |evt: MouseEvent| {
             let coords = evt.data().element_coordinates();
             let scale_val = scale();
@@ -62,16 +73,16 @@ pub fn ImageUploader27() -> Element {
             let y = y_f as i32;
 
             let shift_pressed = evt.modifiers().shift();
-            let roi_width = 20;
-            let roi_height = 20;
+            let roi_w = roi_width();
+            let roi_h = roi_height();
 
-            let centered_x = x - roi_width / 2;
-            let centered_y = y - roi_height / 2;
+            let centered_x = x - roi_w / 2;
+            let centered_y = y - roi_h / 2;
             let max_x = (img_w as i32).saturating_sub(1);
             let max_y = (img_h as i32).saturating_sub(1);
 
-            let clamped_x = centered_x.clamp(0, max_x - roi_width + 1);
-            let clamped_y = centered_y.clamp(0, max_y - roi_height + 1);
+            let clamped_x = centered_x.clamp(0, max_x - roi_w + 1);
+            let clamped_y = centered_y.clamp(0, max_y - roi_h + 1);
 
             if shift_pressed {
                 rois.with_mut(|r| {
@@ -85,8 +96,8 @@ pub fn ImageUploader27() -> Element {
                     r.push(ROI {
                         x: clamped_x,
                         y: clamped_y,
-                        width: roi_width,
-                        height: roi_height,
+                        width: roi_w,
+                        height: roi_h,
                     });
                     println!("ROI added at ({}, {})", clamped_x, clamped_y);
                 });
@@ -126,16 +137,51 @@ pub fn ImageUploader27() -> Element {
     };
 
     rsx! {
-        div { class: "p-4 font-sans",
-            button {
-                onclick: pick_image,
-                class: "px-4 py-2 bg-indigo-600 text-white rounded text-2xl",
-                "Upload Image"
+        div { class: "p-4 font-sans space-y-4",
+            div { class: "flex items-center space-x-4",
+                button {
+                    onclick: pick_image,
+                    class: "px-4 py-2 bg-indigo-600 text-white rounded text-2xl",
+                    "Upload Image"
+                }
+
+                label {
+                    class: "text-sm",
+                    "ROI Width:",
+                    input {
+                        r#type: "number",
+                        min: "16",
+                        max: "512",
+                        value: "{roi_width()}",
+                        class: "ml-2 border rounded px-2 py-1 w-20",
+                        oninput: move |evt| {
+                            if let Ok(val) = evt.value().parse::<i32>() {
+                                roi_width.set(val.clamp(16, 512));
+                            }
+                        }
+                    }
+                }
+
+                label {
+                    class: "text-sm",
+                    "ROI Height:",
+                    input {
+                        r#type: "number",
+                        min: "16",
+                        max: "512",
+                        value: "{roi_height()}",
+                        class: "ml-2 border rounded px-2 py-1 w-20",
+                        oninput: move |evt| {
+                            if let Ok(val) = evt.value().parse::<i32>() {
+                                roi_height.set(val.clamp(16, 512));
+                            }
+                        }
+                    }
+                }
             }
 
             if let Some(url) = image_data_url() {
                 div {
-                    // Outer scrollable wrapper
                     style: "width: 640px; height: 440px; overflow: auto; border: 2px solid #ccc; margin: auto;",
 
                     div {
