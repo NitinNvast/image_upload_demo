@@ -18,6 +18,8 @@ mod img_upload_27;
 use crate::img_upload_27::ImageUploader27;
 mod img_upload_30;
 use crate::img_upload_30::ImageUploader30;
+mod opencv_img_12;
+use crate::opencv_img_12::RFD_Image_Upload;
 
 mod img_upload_28;
 use crate::img_upload_28::ImageUploader28;
@@ -45,8 +47,9 @@ fn App() -> Element {
             // ImageUploader29 {  }
             // ImageUploader28 {}
             ChromeStyleNavbar {}
-            ImageUploader27 {}
+            // ImageUploader27 {}
             // ImageUploader30 {}
+            RFD_Image_Upload {}
 
 
     }
