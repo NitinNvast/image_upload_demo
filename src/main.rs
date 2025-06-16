@@ -41,15 +41,15 @@ fn App() -> Element {
         style { "{include_str!(\"../assets/tailwind.css\")}" }
 
 
-            // ImageUploader {}
+            ImageUploader {}
             // ImageUploader21 {}
             // ImageUploader22 {}
             // ImageUploader29 {  }
             // ImageUploader28 {}
-            ChromeStyleNavbar {}
+            // ChromeStyleNavbar {}
             // ImageUploader27 {}
             // ImageUploader30 {}
-            RFD_Image_Upload {}
+            // RFD_Image_Upload {}
 
 
     }
