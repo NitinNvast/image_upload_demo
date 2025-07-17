@@ -13,6 +13,7 @@ image = "0.25.6"
 rfd = "0.15.3"
 dioxus-desktop = "0.6.3"
 opencv = "0.94.4"
+tokio = { version = "1.45.1", features = ["full"] }
 
 [features]
 default = ["desktop"]

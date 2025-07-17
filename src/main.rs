@@ -23,6 +23,10 @@ use crate::opencv_img_12::RFD_Image_Upload;
 
 mod img_upload_28;
 use crate::img_upload_28::ImageUploader28;
+
+mod img_upload_31;
+use crate::img_upload_31::ImageUploader31;
+
 fn main() {
     LaunchBuilder::new()
         .with_cfg(
@@ -41,15 +45,16 @@ fn App() -> Element {
         style { "{include_str!(\"../assets/tailwind.css\")}" }
 
 
-            ImageUploader {}
-            // ImageUploader21 {}
+            // ImageUploader {}
+            ImageUploader21 {}
             // ImageUploader22 {}
             // ImageUploader29 {  }
             // ImageUploader28 {}
             // ChromeStyleNavbar {}
-            // ImageUploader27 {}
+            ImageUploader27 {}
             // ImageUploader30 {}
             // RFD_Image_Upload {}
+            ImageUploader31 {}
 
 
     }
