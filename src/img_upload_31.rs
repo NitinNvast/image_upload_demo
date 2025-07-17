@@ -1,8 +1,8 @@
+// Updated ImageUploader31 component with optional Subsample ROI placement
 use crate::dioxus_elements::geometry::WheelDelta;
 use base64::engine::general_purpose;
 use base64::Engine;
 use dioxus::prelude::*;
-use image::GenericImageView;
 use rfd::FileDialog;
 use std::fs;
 
@@ -21,12 +21,21 @@ fn point_in_rect(x: i32, y: i32, roi: &Rect) -> bool {
 pub fn ImageUploader31() -> Element {
     let image_data_url = use_signal(|| None::<String>);
     let rois = use_signal(|| Vec::<Rect>::new());
-    let scale = use_signal(|| 1.0f32);
+    let mut scale = use_signal(|| 1.0f32);
     let image_width = use_signal(|| 0f32);
     let image_height = use_signal(|| 0f32);
 
     let drag_start = use_signal(|| None::<(i32, i32)>);
     let drag_current = use_signal(|| None::<(i32, i32)>);
+    let mut subsample_mode = use_signal(|| true);
+
+    let all_image_paths = use_signal(|| Vec::<std::path::PathBuf>::new());
+    let mut current_index = use_signal(|| 0usize);
+
+    // ROI size signals
+    let mut roi_width = use_signal(|| 16i32);
+    let mut roi_height = use_signal(|| 16i32);
+
 
     let on_wheel = {
         to_owned![scale];
@@ -46,7 +55,7 @@ pub fn ImageUploader31() -> Element {
     };
 
     let on_mouse_down = {
-        to_owned![scale, image_width, image_height, drag_start, drag_current];
+        to_owned![scale, image_width, image_height, drag_start, drag_current, rois, subsample_mode,roi_width, roi_height];
         move |evt: MouseEvent| {
             let coords = evt.data().element_coordinates();
             let scale_val = scale();
@@ -54,8 +63,15 @@ pub fn ImageUploader31() -> Element {
             let y = (coords.y / scale_val as f64) as i32;
 
             if x >= 0 && y >= 0 && x < image_width() as i32 && y < image_height() as i32 {
-                drag_start.set(Some((x, y)));
-                drag_current.set(Some((x, y)));
+                if subsample_mode() {
+                    rois.with_mut(|r| {
+                        r.push(Rect::new(x - 10, y - 10, roi_width(), roi_height()));
+                        println!("ROI added at ({}, {}, 20, 20)", x - 10, y - 10);
+                    });
+                } else {
+                    drag_start.set(Some((x, y)));
+                    drag_current.set(Some((x, y)));
+                }
             }
         }
     };
@@ -74,8 +90,14 @@ pub fn ImageUploader31() -> Element {
     };
 
     let on_mouse_up = {
-        to_owned![drag_start, drag_current, rois, image_width, image_height];
+        to_owned![drag_start, drag_current, rois, image_width, image_height, subsample_mode];
         move |evt: MouseEvent| {
+            if subsample_mode() {
+                drag_start.set(None);
+                drag_current.set(None);
+                return;
+            }
+
             if let (Some((x0, y0)), Some((x1, y1))) = (drag_start(), drag_current()) {
                 let shift_pressed = evt.data().modifiers().shift();
 
@@ -90,27 +112,20 @@ pub fn ImageUploader31() -> Element {
                 let clamped_y = y.clamp(0, max_y);
 
                 if shift_pressed {
-                    // Deselect ROI on Shift + click (even if no drag)
                     rois.with_mut(|r| {
                         if let Some(index) = r
                             .iter()
                             .position(|roi| point_in_rect(clamped_x, clamped_y, roi))
                         {
                             r.remove(index);
-                            println!("ROI deselected at ({}, {})", clamped_x, clamped_y);
                         }
                     });
                 } else if roi_width > 0 && roi_height > 0 {
-                    // Add new ROI on drag (only if size > 0)
                     let clamped_x = x.clamp(0, max_x - roi_width + 1);
                     let clamped_y = y.clamp(0, max_y - roi_height + 1);
 
                     rois.with_mut(|r| {
                         r.push(Rect::new(clamped_x, clamped_y, roi_width, roi_height));
-                        println!(
-                            "ROI added at ({}, {}, {}, {})",
-                            clamped_x, clamped_y, roi_width, roi_height
-                        );
                     });
                 }
             }
@@ -122,41 +137,40 @@ pub fn ImageUploader31() -> Element {
 
     #[cfg(not(target_arch = "wasm32"))]
     let pick_image = {
-        to_owned![image_data_url, rois, scale, image_width, image_height];
+        to_owned![image_data_url, rois, scale, image_width, image_height, all_image_paths, current_index];
         move |_| {
             spawn({
-                to_owned![image_data_url, rois, scale, image_width, image_height];
+                to_owned![image_data_url, rois, scale, image_width, image_height, all_image_paths, current_index];
                 async move {
                     if let Some(path) = FileDialog::new()
                         .add_filter("Image", &["png", "jpg", "jpeg", "webp"])
                         .pick_file()
                     {
-                        if let Ok(bytes) = tokio::fs::read(&path).await {
-                            let mime = match path.extension().and_then(|e| e.to_str()) {
-                                Some("png") => "image/png",
-                                Some("jpg") | Some("jpeg") => "image/jpeg",
-                                Some("webp") => "image/webp",
-                                _ => "application/octet-stream",
-                            };
+                        if let Some(folder) = path.parent() {
+                            if let Ok(entries) = fs::read_dir(folder) {
+                                let mut image_paths = vec![];
 
-                            // Convert to OpenCV Mat and decode
-                            if let Ok(mat) = Mat::from_slice(&bytes) {
-                                if let Ok(mut image) = imdecode(&mat, IMREAD_COLOR) {
-                                    let (w, h) = (image.cols(), image.rows());
-                                    image_width.set(w as f32);
-                                    image_height.set(h as f32);
-
-                                    // Encode back to JPEG buffer
-                                    let mut buf = Vector::new();
-                                    if imencode(".jpg", &image, &mut buf, &Vector::new()).is_ok() {
-                                        let encoded =
-                                            general_purpose::STANDARD.encode(buf.to_vec());
-                                        let data_url = format!("data:{};base64,{}", mime, encoded);
-                                        image_data_url.set(Some(data_url));
-                                        rois.set(vec![]);
-                                        scale.set(1.0);
+                                for entry in entries.flatten() {
+                                    let path = entry.path();
+                                    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+                                    if ["png", "jpg", "jpeg", "webp"].contains(&ext.as_str()) {
+                                        image_paths.push(path);
                                     }
                                 }
+
+                                image_paths.sort();
+                                let selected_index = image_paths.iter().position(|p| p == &path).unwrap_or(0);
+                                current_index.set(selected_index);
+                                all_image_paths.set(image_paths);
+
+                                load_image(
+                                    &all_image_paths()[selected_index],
+                                    &mut image_data_url,
+                                    &mut image_width,
+                                    &mut image_height,
+                                    &mut rois,
+                                    &mut scale,
+                                ).await;
                             }
                         }
                     }
@@ -165,8 +179,43 @@ pub fn ImageUploader31() -> Element {
         }
     };
 
-    let dragging_preview = if let (Some((x0, y0)), Some((x1, y1))) = (drag_start(), drag_current())
-    {
+    #[cfg(not(target_arch = "wasm32"))]
+    async fn load_image(
+        path: &std::path::PathBuf,
+        image_data_url: &mut Signal<Option<String>>,
+        image_width: &mut Signal<f32>,
+        image_height: &mut Signal<f32>,
+        rois: &mut Signal<Vec<Rect>>,
+        scale: &mut Signal<f32>,
+    ) {
+        if let Ok(bytes) = tokio::fs::read(path).await {
+            let mime = match path.extension().and_then(|e| e.to_str()) {
+                Some("png") => "image/png",
+                Some("jpg") | Some("jpeg") => "image/jpeg",
+                Some("webp") => "image/webp",
+                _ => "application/octet-stream",
+            };
+
+            if let Ok(mat) = Mat::from_slice(&bytes) {
+                if let Ok(mut image) = imdecode(&mat, IMREAD_COLOR) {
+                    let (w, h) = (image.cols(), image.rows());
+                    image_width.set(w as f32);
+                    image_height.set(h as f32);
+
+                    let mut buf = Vector::new();
+                    if imencode(".jpg", &image, &mut buf, &Vector::new()).is_ok() {
+                        let encoded = general_purpose::STANDARD.encode(buf.to_vec());
+                        let data_url = format!("data:{};base64,{}", mime, encoded);
+                        image_data_url.set(Some(data_url));
+                        rois.set(vec![]);
+                        scale.set(1.0);
+                    }
+                }
+            }
+        }
+    }
+
+    let dragging_preview = if let (Some((x0, y0)), Some((x1, y1))) = (drag_start(), drag_current()) {
         let scale_val = scale();
         let x = x0.min(x1);
         let y = y0.min(y1);
@@ -187,14 +236,47 @@ pub fn ImageUploader31() -> Element {
         None
     };
 
+    
     rsx! {
         div { class: "p-4 font-sans",
-            button {
-                onclick: pick_image,
-                class: "px-4 py-2 bg-indigo-600 text-white rounded text-2xl",
-                "Upload Image"
+            div { class: "flex gap-2 mb-4",
+                button { onclick: pick_image, class: "px-4 py-2 bg-indigo-600 text-white rounded", "Upload Image" },
+                button { onclick: move |_| subsample_mode.set(!subsample_mode()), class: "px-4 py-2 bg-yellow-500 text-white rounded", "Toggle Subsample" },
+                button { onclick: move |_| scale.with_mut(|s| *s *= 1.1), class: "px-2 py-1 bg-green-600 text-white rounded", "+" },
+                button { onclick: move |_| scale.with_mut(|s| *s /= 1.1), class: "px-2 py-1 bg-red-600 text-white rounded", "-" },
             }
-
+            label {
+                class: "text-sm",
+                "ROI Width:",
+                input {
+                    r#type: "number",
+                    min: "16",
+                    max: "512",
+                    value: "{roi_width()}",
+                    class: "ml-2 border rounded px-2 py-1 w-20",
+                    oninput: move |evt| {
+                        if let Ok(val) = evt.value().parse::<i32>() {
+                            roi_width.set(val.clamp(16, 512));
+                        }
+                    }
+                }
+            }
+            label {
+                class: "text-sm",
+                "ROI Height:",
+                input {
+                    r#type: "number",
+                    min: "16",
+                    max: "512",
+                    value: "{roi_height()}",
+                    class: "ml-2 border rounded px-2 py-1 w-20",
+                    oninput: move |evt| {
+                        if let Ok(val) = evt.value().parse::<i32>() {
+                            roi_height.set(val.clamp(16, 512));
+                        }
+                    }
+                }
+            }    
             if let Some(url) = image_data_url() {
                 div {
                     style: "width: 640px; height: 440px; overflow: auto; border: 2px solid #ccc; margin: auto;",
@@ -208,7 +290,7 @@ pub fn ImageUploader31() -> Element {
                             onmousedown: on_mouse_down,
                             onmousemove: on_mouse_move,
                             onmouseup: on_mouse_up,
-                            onwheel: on_wheel,
+                            // onwheel: on_wheel,
 
                             img {
                                 src: "{url}",
@@ -216,8 +298,7 @@ pub fn ImageUploader31() -> Element {
                                 style: "width: {(image_width() * scale())}px; height: {(image_height() * scale())}px;",
                             }
 
-                           { // Existing ROIs
-                            rois.read().iter().map(|roi| {
+                            { rois.read().iter().map(|roi| {
                                 let scale_val = scale();
                                 let left = (roi.x as f32 * scale_val).round();
                                 let top = (roi.y as f32 * scale_val).round();
@@ -229,15 +310,66 @@ pub fn ImageUploader31() -> Element {
                                         style: "left: {left}px; top: {top}px; width: {width}px; height: {height}px;",
                                     }
                                 }
-                            })
+                            }) }
 
-                            }
-
-                            // ROI preview while dragging
                             {dragging_preview}
                         }
                     }
                 }
+
+                 // ✅ Show navigation only if image is loaded
+                div { class: "flex gap-2 mt-4 justify-center",
+                    button {
+                        disabled: *current_index.read() == 0,
+                        onclick: move |_| {
+                            let idx = *current_index.read();
+                            if idx > 0 {
+                                let new_index = idx - 1;
+                                current_index.set(new_index);
+                                spawn({
+                                    to_owned![all_image_paths, image_data_url, image_width, image_height, rois, scale];
+                                    async move {
+                                        load_image(
+                                            &all_image_paths()[new_index],
+                                            &mut image_data_url,
+                                            &mut image_width,
+                                            &mut image_height,
+                                            &mut rois,
+                                            &mut scale,
+                                        ).await;
+                                    }
+                                });
+                            }
+                        },
+                        "⏮ Prev"
+                    }
+
+                    button {
+                        disabled: *current_index.read() + 1 >= all_image_paths().len(),
+                        onclick: move |_| {
+                            let idx = *current_index.read();
+                            if idx + 1 < all_image_paths().len() {
+                                let new_index = idx + 1;
+                                current_index.set(new_index);
+                                spawn({
+                                    to_owned![all_image_paths, image_data_url, image_width, image_height, rois, scale];
+                                    async move {
+                                        load_image(
+                                            &all_image_paths()[new_index],
+                                            &mut image_data_url,
+                                            &mut image_width,
+                                            &mut image_height,
+                                            &mut rois,
+                                            &mut scale,
+                                        ).await;
+                                    }
+                                });
+                            }
+                        },
+                        "Next ⏭"
+                    }
+                }
+
             }
         }
     }
