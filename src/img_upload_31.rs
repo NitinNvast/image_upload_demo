@@ -7,7 +7,7 @@ use rfd::FileDialog;
 use std::fs;
 
 use opencv::{
-    core::{Rect, Scalar, Vector},
+    core::{Rect, Scalar, Vec3b, Vector},
     imgcodecs::{imdecode, imencode, IMREAD_COLOR},
     imgproc::rectangle,
     prelude::*,
@@ -28,6 +28,8 @@ pub fn ImageUploader31() -> Element {
     let drag_start = use_signal(|| None::<(i32, i32)>);
     let drag_current = use_signal(|| None::<(i32, i32)>);
     let mut subsample_mode = use_signal(|| true);
+    let mut subsample_grayscale = use_signal(|| false);
+    let mut subsample_rgb = use_signal(|| true);
 
     let all_image_paths = use_signal(|| Vec::<std::path::PathBuf>::new());
     let mut current_index = use_signal(|| 0usize);
@@ -35,6 +37,8 @@ pub fn ImageUploader31() -> Element {
     // ROI size signals
     let mut roi_width = use_signal(|| 16i32);
     let mut roi_height = use_signal(|| 16i32);
+
+    let mut original_mat= use_signal(|| None::<Mat>);
 
 
     let on_wheel = {
@@ -55,19 +59,99 @@ pub fn ImageUploader31() -> Element {
     };
 
     let on_mouse_down = {
-        to_owned![scale, image_width, image_height, drag_start, drag_current, rois, subsample_mode,roi_width, roi_height];
+        to_owned![scale, image_width, image_height, drag_start, drag_current, rois, subsample_mode, subsample_grayscale, subsample_rgb, roi_width, roi_height, original_mat];
         move |evt: MouseEvent| {
             let coords = evt.data().element_coordinates();
+            let shift_pressed = evt.data().modifiers().shift();
             let scale_val = scale();
             let x = (coords.x / scale_val as f64) as i32;
             let y = (coords.y / scale_val as f64) as i32;
 
             if x >= 0 && y >= 0 && x < image_width() as i32 && y < image_height() as i32 {
                 if subsample_mode() {
-                    rois.with_mut(|r| {
-                        r.push(Rect::new(x - 10, y - 10, roi_width(), roi_height()));
-                        println!("ROI added at ({}, {}, 20, 20)", x - 10, y - 10);
-                    });
+                    let w = roi_width();
+                    let h = roi_height();
+                    let roi = Rect::new(x - (w / 2), y - (h / 2), w, h); // ⬅️ Centered ROI
+
+                    // rois.with_mut(|r| r.push(roi));
+                    if shift_pressed {
+                        rois.with_mut(|r| {
+                            if let Some(index) = r.iter().position(|existing_roi| {
+                                point_in_rect(x, y, existing_roi)
+                            }) {
+                                r.remove(index);
+                            }
+                        });
+                    } else {
+                        rois.with_mut(|r| r.push(roi));
+                    }
+
+                    if let Some(image) = &*original_mat.read() {
+                        if subsample_grayscale() {
+                            println!("🟢 Grayscale ROI @ ({x},{y}) ============>");
+                            let mut count = 0;
+                            for row in 0..h {
+                                for col in 0..w {
+                                    if count >= 256 {
+                                        break;
+                                    }
+                                    match image.at_2d::<u8>(y + row, x + col) {
+                                        Ok(val) => print!("{:3}, ", val),
+                                        Err(_) => print!("Err, "),
+                                    }
+                                    count += 1;
+                                }
+                                if count >= 256 {
+                                    break;
+                                }
+                                println!();
+                            }
+                        } else if subsample_rgb() {
+                            println!("🎨  R Channel ({}x{})", w, h);
+                            for row in 0..h {
+                                for col in 0..w {
+                                    match image.at_2d::<Vec3b>(y + row, x + col) {
+                                        Ok(val) => print!("{:4}", val[0]), // R channel
+                                        Err(_) => print!("Err "),
+                                    }
+                                }
+                                println!();
+                            }
+
+                            println!("🎨  G Channel ({}x{})", w, h);
+                            for row in 0..h {
+                                for col in 0..w {
+                                    match image.at_2d::<Vec3b>(y + row, x + col) {
+                                        Ok(val) => print!("{:4}", val[1]), // G channel
+                                        Err(_) => print!("Err "),
+                                    }
+                                }
+                                println!();
+                            }
+
+                            println!("🎨  B Channel ({}x{})", w, h);
+                            for row in 0..h {
+                                for col in 0..w {
+                                    match image.at_2d::<Vec3b>(y + row, x + col) {
+                                        Ok(val) => print!("{:4}", val[2]), // B channel
+                                        Err(_) => print!("Err "),
+                                    }
+                                }
+                                println!();
+                            }
+
+                            println!("🔗  Combined RGB ({}x{})", w, h);
+                            for row in 0..h {
+                                for col in 0..w {
+                                    match image.at_2d::<Vec3b>(y + row, x + col) {
+                                        Ok(val) => print!("[{:3}, {:3}, {:3}] ", val[0], val[1], val[2]), // R, G, B
+                                        Err(_) => print!("[Err] "),
+                                    }
+                                }
+                                println!();
+                            }
+                        }
+                    }
                 } else {
                     drag_start.set(Some((x, y)));
                     drag_current.set(Some((x, y)));
@@ -75,6 +159,7 @@ pub fn ImageUploader31() -> Element {
             }
         }
     };
+
 
     let on_mouse_move = {
         to_owned![scale, drag_current];
@@ -90,7 +175,7 @@ pub fn ImageUploader31() -> Element {
     };
 
     let on_mouse_up = {
-        to_owned![drag_start, drag_current, rois, image_width, image_height, subsample_mode];
+        to_owned![drag_start, drag_current, rois, image_width, image_height, subsample_mode, subsample_grayscale, subsample_rgb, original_mat];
         move |evt: MouseEvent| {
             if subsample_mode() {
                 drag_start.set(None);
@@ -127,6 +212,37 @@ pub fn ImageUploader31() -> Element {
                     rois.with_mut(|r| {
                         r.push(Rect::new(clamped_x, clamped_y, roi_width, roi_height));
                     });
+
+                    if let Some(mat) = original_mat.read().as_ref() {
+                        let roi = Rect::new(clamped_x, clamped_y, roi_width, roi_height);
+
+                        for y in roi.y..roi.y + roi.height {
+                            for x in roi.x..roi.x + roi.width {
+                                if y < mat.rows() && x < mat.cols() {
+                                    match mat.typ() {
+                                        // Grayscale image
+                                        opencv::core::CV_8UC1 => {
+                                            if let Ok(val) = mat.at_2d::<u8>(y, x) {
+                                                println!("Pixel at ({}, {}): Gray={}", x, y, *val);
+                                            }
+                                        }
+                                        // RGB image
+                                        opencv::core::CV_8UC3 => {
+                                            if let Ok(p) = mat.at_2d::<Vec3b>(y, x) {
+                                                println!(
+                                                    "Pixel at ({}, {}): R={} G={} B={}",
+                                                    x, y, p[2], p[1], p[0]
+                                                );
+                                            }
+                                        }
+                                        _ => {
+                                            println!("Unsupported image format at ({}, {})", x, y);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -170,6 +286,10 @@ pub fn ImageUploader31() -> Element {
                                     &mut image_height,
                                     &mut rois,
                                     &mut scale,
+                                    true,
+                                    false,
+                                    true,
+                                    &mut original_mat
                                 ).await;
                             }
                         }
@@ -187,6 +307,10 @@ pub fn ImageUploader31() -> Element {
         image_height: &mut Signal<f32>,
         rois: &mut Signal<Vec<Rect>>,
         scale: &mut Signal<f32>,
+        subsample_mode: bool,
+        subsample_grayscale: bool,
+        subsample_rgb: bool,
+        original_mat: &mut Signal<Option<Mat>>,
     ) {
         if let Ok(bytes) = tokio::fs::read(path).await {
             let mime = match path.extension().and_then(|e| e.to_str()) {
@@ -198,12 +322,34 @@ pub fn ImageUploader31() -> Element {
 
             if let Ok(mat) = Mat::from_slice(&bytes) {
                 if let Ok(mut image) = imdecode(&mat, IMREAD_COLOR) {
+                    let original_image= image.clone();
+                    // Handle subsampling mode
+                    if subsample_mode {
+                        if subsample_grayscale {
+                            use opencv::{core::AlgorithmHint, imgproc};
+
+                            let mut gray = Mat::default();
+                            if imgproc::cvt_color(&image, &mut gray, imgproc::COLOR_BGR2GRAY, 0, AlgorithmHint::ALGO_HINT_DEFAULT).is_ok() {
+                                image = gray; // Replace original image with grayscale
+                            }
+                        } else if subsample_rgb {
+                            use opencv::{core::AlgorithmHint, imgproc};
+
+                            let mut rgb = Mat::default();
+                            if imgproc::cvt_color(&image, &mut rgb, imgproc::COLOR_BGR2RGB, 0, AlgorithmHint::ALGO_HINT_DEFAULT).is_ok() {
+                                image = rgb;
+                            }
+                        }
+                    }
+
                     let (w, h) = (image.cols(), image.rows());
                     image_width.set(w as f32);
                     image_height.set(h as f32);
+                    original_mat.set(Some(image.clone()));
 
                     let mut buf = Vector::new();
-                    if imencode(".jpg", &image, &mut buf, &Vector::new()).is_ok() {
+                    // Use ".jpg" regardless of format for simplicity
+                    if imencode(".jpg", &original_image, &mut buf, &Vector::new()).is_ok() {
                         let encoded = general_purpose::STANDARD.encode(buf.to_vec());
                         let data_url = format!("data:{};base64,{}", mime, encoded);
                         image_data_url.set(Some(data_url));
@@ -214,6 +360,7 @@ pub fn ImageUploader31() -> Element {
             }
         }
     }
+
 
     let dragging_preview = if let (Some((x0, y0)), Some((x1, y1))) = (drag_start(), drag_current()) {
         let scale_val = scale();
@@ -336,6 +483,10 @@ pub fn ImageUploader31() -> Element {
                                             &mut image_height,
                                             &mut rois,
                                             &mut scale,
+                                            true,
+                                            false,
+                                            true,
+                                            &mut original_mat
                                         ).await;
                                     }
                                 });
@@ -361,6 +512,10 @@ pub fn ImageUploader31() -> Element {
                                             &mut image_height,
                                             &mut rois,
                                             &mut scale,
+                                            true,
+                                            false,
+                                            true,
+                                            &mut original_mat
                                         ).await;
                                     }
                                 });

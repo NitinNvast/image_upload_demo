@@ -46,12 +46,12 @@ fn App() -> Element {
 
 
             // ImageUploader {}
-            ImageUploader21 {}
+            // ImageUploader21 {}
             // ImageUploader22 {}
             // ImageUploader29 {  }
             // ImageUploader28 {}
             // ChromeStyleNavbar {}
-            ImageUploader27 {}
+            // ImageUploader27 {}
             // ImageUploader30 {}
             // RFD_Image_Upload {}
             ImageUploader31 {}
